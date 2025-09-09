@@ -7,15 +7,27 @@ app = Flask(__name__)
 CORS(app)  # allow frontend (GitHub Pages) to talk to backend
 
 # Render provides DATABASE_URL environment variable
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL")
+# Some databases use "postgres://" prefix, replace it with "postgresql://"
+db_url = os.environ.get("DATABASE_URL")
+if db_url and db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
+# Model
 class Task(db.Model):
+    __tablename__ = "tasks"   # explicit table name to avoid issues
     id = db.Column(db.Integer, primary_key=True)
     content = db.Column(db.String(200), nullable=False)
 
+# Create tables on startup (works on Render & locally)
+with app.app_context():
+    db.create_all()
+
+# Routes
 @app.route("/tasks", methods=["GET"])
 def get_tasks():
     tasks = Task.query.all()
@@ -39,6 +51,4 @@ def delete_task(id):
     return jsonify({"error": "Not found"}), 404
 
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
     app.run(debug=True)
